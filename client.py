@@ -17,11 +17,11 @@ else:
 
 
 message = ""
-while(message != "!q"):
-    message = input(">")
-    message_length = str(len(message)).encode('utf-8')
+while(message != "!q".encode('utf-8')):
+    message = input(">").encode('utf-8')
+    message_length = str(len(message))
     try:
-        response = s.post(URL, headers = {'User' : myauth, 'Content-Length' : message_length}, data = {'Message' : message.encode('utf-8')})
+        response = s.post(URL, headers = {'User' : myauth, 'Content-Length' : message_length}, data = message)
         if response.status_code != 200:
             break
         response.raise_for_status()
