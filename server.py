@@ -1,30 +1,49 @@
+from socketserver import ThreadingMixIn
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+from threading import Thread
 import urllib.parse
 import string
 import random
 import json
 
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
+
 class Serv(BaseHTTPRequestHandler):
     users = {}
+    queues = {}
     messages = []
 
     def do_GET(self):
         if self.path == '/':
-            print("LONG POLLING TO BE ADDED")
+            self.send_response(200)
+            self.end_headers()
+            print(self.headers)
+            message = self.wait(self.headers['User'])
+            self.queues[self.headers['User']] = False
+            self.wfile.write(message.encode('utf-8'))
+            self.wfile.write('\n'.encode('utf-8'))
+            return
         else:
             try:
                 query = urllib.parse.parse_qs(self.path[2:])
                 username = query['user-name'][0]
                 auth = self.generate_auth()
                 self.users[auth] = username
+                self.messages.append(username + " joined the chatroom!")
                 self.send_response(200)
                 self.send_header("auth", auth)
                 self.end_headers()
-                self.messages.append(username + " joined the chatroom!")
+
+                for key in self.queues:
+                    self.queues[key] = True
+                self.queues[auth] = False
+                
             except:
                 self.send_response(400)
                 self.end_headers()
-                self.wfile.write(bytes('Bad Request'))
+                self.wfile.write(bytes('Bad Request', 'utf-8'))
 
     def do_POST(self):
         print(self.headers['User'])
@@ -37,8 +56,16 @@ class Serv(BaseHTTPRequestHandler):
                 if message == '!q':
                     self.messages.append(self.users[self.headers['User']] + " has left the chat!")
                     self.users.pop(self.headers['User'])
+                    self.queues.pop(self.headers['User'])
                 else:
                     self.messages.append(self.users[self.headers['User']] + ":" + message)
+                    self.queues[self.headers['User']] = False
+
+                for key in self.queues:
+                    if key != self.headers['User']:
+                        self.queues[key] = True
+
+
                 self.send_response(200)
                 self.end_headers()
                 print(self.users)
@@ -46,14 +73,23 @@ class Serv(BaseHTTPRequestHandler):
             except:
                 self.send_response(400)
                 self.end_headers()
-                self.wfile.write(bytes('Bad Request'))
+                self.wfile.write(bytes('Bad Request', 'utf-8'))
         else:
             self.send_response(401)
             self.end_headers()
-            self.wfile.write(bytes('Unauthorized'))
+            self.wfile.write(bytes('Unauthorized', 'utf-8'))
+
+
+    def wait(self, key):
+        while(not self.queues[key]):
+            continue
+        return self.messages[-1]
 
     def generate_auth(self):
         return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
 
-httpd = HTTPServer(('127.0.0.1', 8080), Serv)
-httpd.serve_forever()
+
+if __name__ == '__main__':
+    server = ThreadedHTTPServer(('localhost', 8080), Serv)
+    print('Starting server, use <Ctrl-C> to stop')
+    server.serve_forever()
