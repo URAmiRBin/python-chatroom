@@ -15,6 +15,7 @@ except:
     print('ERROR')
 else:
     myauth = response.headers['auth'].encode('utf-8')
+    print(response.text)
 
 def client_send():
     message = ""
@@ -24,27 +25,26 @@ def client_send():
         try:
             response = s.post(URL, headers = {'User' : myauth, 'Content-Length' : message_length}, data = message)
             if response.status_code != 200:
-                break
+                return
             print(response.text)
             response.raise_for_status()
         except Exception as e:
             print(e)
             print("ERROR")
-            break
+            return
 
 def client_recv():
     while(True):
         try:
             response = s.get(URL, headers = {'User' : myauth})
             if response.status_code != 200:
-                break
+                return
             print(response.text)
             response.raise_for_status()
         except Exception as e:
             print(e)
             print("ERROR")
-            break
-
+            return
 
 receive_thread = threading.Thread(target=client_recv)
 receive_thread.start()

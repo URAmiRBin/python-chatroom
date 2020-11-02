@@ -17,25 +17,37 @@ class Serv(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/':
-            self.send_response(200)
-            self.end_headers()
-            print(self.headers)
-            message = self.wait(self.headers['User'])
-            self.queues[self.headers['User']] = False
-            self.wfile.write(message.encode('utf-8'))
-            self.wfile.write('\n'.encode('utf-8'))
-            return
+            try:
+                if self.headers['User'] in self.users:
+                    self.send_response(200)
+                    self.end_headers()
+                    print(self.headers)
+                    message = self.wait(self.headers['User'])
+                    self.queues[self.headers['User']] = False
+                    self.wfile.write(message.encode('utf-8'))
+                    self.wfile.write('\n'.encode('utf-8'))
+                    return
+            except:
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(bytes('Unauthorized', 'utf-8'))
         else:
             try:
                 query = urllib.parse.parse_qs(self.path[2:])
                 username = query['user-name'][0]
                 auth = self.generate_auth()
                 self.users[auth] = username
-                self.messages.append(username + " joined the chatroom!")
                 self.send_response(200)
                 self.send_header("auth", auth)
                 self.end_headers()
-
+                log = ''
+                for m in self.messages:
+                    log += m
+                    log += '\n'
+                print("OLD MESSAGES ", log)
+                self.wfile.write(log.encode('utf-8'))
+                self.messages.append(username + " joined the chatroom!")
+                
                 for key in self.queues:
                     self.queues[key] = True
                 self.queues[auth] = False
@@ -55,6 +67,8 @@ class Serv(BaseHTTPRequestHandler):
                 print(message)
                 if message == '!q':
                     self.messages.append(self.users[self.headers['User']] + " has left the chat!")
+               
+               
                     self.users.pop(self.headers['User'])
                     self.queues.pop(self.headers['User'])
                 else:
@@ -81,9 +95,12 @@ class Serv(BaseHTTPRequestHandler):
 
 
     def wait(self, key):
-        while(not self.queues[key]):
-            continue
-        return self.messages[-1]
+        try:
+            while(not self.queues[key]):
+                continue
+            return self.messages[-1]
+        except:
+            return bytes('Unauthorized', 'utf-8')
 
     def generate_auth(self):
         return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
