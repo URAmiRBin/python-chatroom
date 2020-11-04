@@ -1,51 +1,59 @@
 import requests
 import logging
-from requests.exceptions import HTTPError
 import threading
+import sys
 
+# SETTINGS
 URL = 'http://127.0.0.1:8080'
-s = requests.Session()
-username = input("enter you name >").encode('utf-8')
+USERNAME = input("Enter you name >").encode('utf-8')
+SESSION = requests.Session()
 
-try:
-    response = s.get(URL, params={'user-name': username})
-
-    response.raise_for_status()
-except:
-    print('ERROR')
-else:
-    myauth = response.headers['auth'].encode('utf-8')
-    print(response.text)
-
+# Thread for sending messages
 def client_send():
     message = ""
+    # !q is the command for exit
     while(message != "!q".encode('utf-8')):
-        message = input(">").encode('utf-8')
-        message_length = str(len(message))
+        message = input().encode('utf-8')
         try:
-            response = s.post(URL, headers = {'User' : myauth, 'Content-Length' : message_length}, data = message)
-            if response.status_code != 200:
-                return
-            print(response.text)
-            response.raise_for_status()
+            # Send post request with auth header and message body
+            # Content length is automatically created by the library
+            SESSION.post(URL, headers = {'User' : AUTH}, data = message)
         except Exception as e:
             print(e)
-            print("ERROR")
-            return
+            sys.exit()
+
 
 def client_recv():
     while(True):
         try:
-            response = s.get(URL, headers = {'User' : myauth})
+            # Receive get request with auth header
+            response = SESSION.get(URL, headers = {'User' : AUTH})
             if response.status_code != 200:
-                return
+                print(response.status_code, " : ", response.text)
+                sys.exit()
             print(response.text)
-            response.raise_for_status()
         except Exception as e:
             print(e)
-            print("ERROR")
-            return
+            sys.exit()
 
+
+try:
+    # Login get request : 127.0.0.1:8080/?user-name=USERNAME
+    response = SESSION.get(URL, params={'user-name': USERNAME})
+except:
+    print('Client Error : Server ', URL, ' did not respond')
+    sys.exit()
+else:
+    if response.status_code != 200:
+        print(response.status_code, " : ", response.text)
+        sys.exit()
+    # Get Authorization code from server
+    AUTH = response.headers['auth'].encode('utf-8')
+    print("Welcome to chatroom! type !q to leave")
+    # Server returns message log in response body
+    print(response.text)
+
+# Run two parallel threads, one for sending and another for receiving
 receive_thread = threading.Thread(target=client_recv)
 receive_thread.start()
 
